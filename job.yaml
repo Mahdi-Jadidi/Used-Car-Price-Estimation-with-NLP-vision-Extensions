@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: car-price-pipeline-job
+spec:
+  template:
+    spec:
+      containers:
+      - name: pipeline-worker
+        image: used-car-pipeline:latest
+        imagePullPolicy: Never
+      restartPolicy: OnFailure
+  ttlSecondsAfterFinished: 120
