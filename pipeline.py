@@ -1,8 +1,4 @@
 """
-Data Pipeline - Task 3
-======================
-Complete pipeline for car price prediction data preparation.
-
 Pipeline stages:
 1. Database connection
 2. Data loading from SQLite
@@ -77,7 +73,6 @@ def main():
     
     print("[5/5] Saving pipeline outputs...")
     try:
-        # Create output directory
         output_dir = os.path.join(project_root, "data", "output")
         os.makedirs(output_dir, exist_ok=True)
         
@@ -106,7 +101,6 @@ def main():
         print(f"      [ERROR] Saving outputs failed: {e}")
         return
     
-    # Summary
     print()
     print("="*60)
     print("PIPELINE COMPLETED SUCCESSFULLY")
