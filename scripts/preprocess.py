@@ -1,12 +1,14 @@
 from scripts.load_data import load_scrap_data, load_original_data, load_car_names_data
 import os
 import sys
-import difflib
+import requests
 import numpy as np
 from scripts.config import *
 import pandas as pd
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from main_directory import get_main_dir
+from deep_translator import GoogleTranslator
+from sentence_transformers import SentenceTransformer
 machine_makers = [
     "Iran Khodro", "SAIPA", "Pars Khodro", "Bahman", "Kerman", "Modiran", 
     "Toyota", "Volkswagen Group", "Hyundai Motor Group", "General Motors", 
@@ -31,6 +33,11 @@ machine_makers = [
     "Ather Energy", "Simple Energy", "Revolt Motors"
 ]
 transmission_types = ["manual transmission", "automatic transmission", "دنده اتوماتیک", "دنده دستی"]
+model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+translator = GoogleTranslator(
+    source="fa",
+    target="en"
+    )
 car_prices_usd = {
     "پژو_207": 10000,
     "پژو_206": 6367,
@@ -176,17 +183,15 @@ def make_year_correct(x):
         x += 621
     return x
 def most_similar(candidates, x):
-    x = str(x).strip().casefold()
-    if not x:
-        return candidates[0]
-
-    def score(candidate):
-        candidate_norm = str(candidate).strip().casefold()
-        if candidate_norm in x or x in candidate_norm:
-            return 1.0
-        return difflib.SequenceMatcher(None, candidate_norm, x).ratio()
-
-    return max(candidates, key=score)
+    x_name = x
+    x = model.encode(x)
+    embeddings = model.encode(candidates)
+    embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+    x = x / np.linalg.norm(x)
+    similarities = np.dot(embeddings, x)
+   
+   
+    return candidates[np.argmax(similarities)]
 def convert_to_int(x):
     try:
         return int(x.replace(',', '').split('-')[0])
@@ -226,7 +231,7 @@ def clean_concat_df(df):
     df.dropna()
     return df
 def translate_text(text, source_lang='fa', target_lang='en'):
-    return str(text)
+    return translator.translate(str(text))
 
 df_scrap = load_scrap_data()
 df_scrap_clean = clean_df_scrap(df_scrap)
