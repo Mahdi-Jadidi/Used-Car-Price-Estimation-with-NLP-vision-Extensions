@@ -1,98 +1,131 @@
-markdown
-# Car Price Prediction - Data Science Pipeline
+# Used Car Price Estimation with NLP and Vision Extensions
 
-A modular data science pipeline for loading, cleaning, and feature-engineering
-car listing data from a SQLite database.
+This project builds a data science pipeline for used-car price estimation using a SQLite-backed dataset, text-aware preprocessing, and feature engineering for modeling preparation.
+
+The repository is structured to match the Phase 2 assignment requirements:
+- database storage
+- preprocessing
+- feature engineering
+- automated pipeline execution
+- GitHub Actions CI
+- optional Docker support
+
+## Dataset And Git LFS
+
+The dataset is too large for a normal GitHub upload, so it is tracked with Git LFS.
+
+Tracked dataset files:
+- `datasets/car_data.csv`
+- `datasets/final_car_database.db`
+
+If you clone the repository locally, run:
+
+```bash
+git lfs install
+git lfs pull
+```
+
+This restores the real dataset files instead of the small pointer files stored in the Git commit history.
 
 ## Project Structure
 
+```text
 .
-
-├── database_connection.py # SQLite connection handler (get_connection)
-
-├── config.py # Project configuration and constants
-
-├── main_directory.py # Path / directory management
-
-├── pipeline.py # Main entry point that runs all stages
-
+├── pipeline.py
+├── main_directory.py
+├── requirements.txt
+├── Dockerfile
+├── job.yaml
+├── datasets/
+│   ├── car_data.csv
+│   └── final_car_database.db
 ├── scripts/
+│   ├── database_connection.py
+│   ├── load_data.py
+│   ├── preprocess.py
+│   ├── feature_enginering.py
+│   ├── load_dataset.py
+│   ├── NetScrapping.py
+│   ├── save_to_database.py
+│   └── config.py
+└── .github/workflows/pipeline.yml
+```
 
-│ ├── load_data.py # Loads data from database tables
+## What The Pipeline Does
 
-│ ├── preprocess.py # Cleans, translates, and embeds text data
+`pipeline.py` runs the project end to end:
 
-│ └── feature_enginering.py # Splits data and transforms features
+1. Connects to the SQLite database.
+2. Loads raw tables into pandas DataFrames.
+3. Cleans and preprocesses the scraped/original car data.
+4. Builds engineered features and splits train/test sets.
+5. Saves pipeline outputs to disk.
 
-├── datasets/ # Database files
+Generated outputs are written to:
+- `data/output/cleaned_data.csv`
+- `data/output/train_data.csv`
+- `data/output/test_data.csv`
+- `data/output/pipeline_data.pkl`
 
-└── data/output/ # Pipeline outputs
-Requirements
+## Main Scripts
 
-    Python 3.8+
-    Dependencies in requirements.txt
+- `scripts/database_connection.py` - opens the SQLite database connection.
+- `scripts/load_data.py` - loads tables from the database.
+- `scripts/preprocess.py` - cleans and normalizes the raw data.
+- `scripts/feature_enginering.py` - creates brand features and prepares train/test matrices.
 
-Installation
+## Requirements
 
-bash
+- Python 3.8 or newer
+- Dependencies listed in `requirements.txt`
 
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
+```
 
-On Windows, set UTF-8 encoding to avoid Unicode errors:
+## Run The Pipeline
 
-powershell
+From the repository root:
 
-chcp 65001
-
-$env:PYTHONIOENCODING=“utf-8”
-Usage
-
-bash
-
+```bash
 python pipeline.py
-Pipeline Stages
-1. Load Data (load_data.py)
+```
 
-Reads from three database tables:
+On Windows, if you run into console encoding problems:
 
-    scrab_cars_table via load_scrap_data()
-    car_original via load_original_data()
-    car_name_info via load_car_names_data()
+```powershell
+chcp 65001
+$env:PYTHONIOENCODING="utf-8"
+python pipeline.py
+```
 
-2. Preprocess (preprocess.py)
+## CI/CD
 
-    Cleans scraped data (clean_df_scrap)
-    Parses kilometers, fixes years, normalizes transmission values
-    Translates text with deep-translator (GoogleTranslator)
-    Generates text embeddings with sentence-transformers
-    Concatenates scraped + original data into df_concat_clean
+The repository includes GitHub Actions in `.github/workflows/pipeline.yml`.
 
-3. Feature Engineering (feature_enginering.py)
+The workflow:
+- runs on push and pull request events to `main`
+- installs dependencies from `requirements.txt`
+- executes `python pipeline.py`
 
-    Brand matching via most_similar_brand
-    80/20 train/test split
-    StandardScaler for numeric features
-    OneHotEncoder for categorical features
-    Produces df_train_transformed and df_test_transformed
+## Docker
 
-4. Save Outputs
+The repository also includes a `Dockerfile` for optional containerized execution.
 
-Writes results to data/output/:
+## Notes
 
-    cleaned_data.csv
-    train_data.csv
-    test_data.csv
-    pipeline_data.pkl
+- The database file must exist in `datasets/final_car_database.db`.
+- The SQLite schema and SQL extraction logic are embedded in the scripts.
+- Some preprocessing and feature engineering steps rely on text matching and multilingual car-name normalization.
+- The project is focused on the data pipeline and modeling preparation phase, not on final model training.
 
-Key Dependencies
-Library 	Purpose
-pandas / numpy 	Data processing
-scikit-learn 	Feature transformation & split
-sentence-transformers 	Text embeddings
-deep-translator 	Text translation
-requests 	HTTP requests
-Common Errors
+## Troubleshooting
 
-    ModuleNotFoundError: run pip install -r requirements.txt
-    UnicodeEncodeError (Windows): set chcp 65001 and PYTHONIOENCODING=utf-8
-    Database connection error: confirm the DB file exists under datasets/ and thepath in config.py is correct
+- `unable to open database file`
+  - Make sure the dataset was fetched with Git LFS and the `datasets/` folder contains the real `.db` file.
+- `ModuleNotFoundError`
+  - Install requirements with `pip install -r requirements.txt`.
+- Encoding issues on Windows
+  - Set UTF-8 mode with `chcp 65001` and `PYTHONIOENCODING=utf-8`.

@@ -1,6 +1,2 @@
 pandas
 numpy
-requests
-deep-translator
-sentence-transformers
-scikit-learn
