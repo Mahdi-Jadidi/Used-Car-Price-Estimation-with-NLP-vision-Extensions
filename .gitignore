@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+scripts/__pycache__/
+artifacts/
+mlruns/
