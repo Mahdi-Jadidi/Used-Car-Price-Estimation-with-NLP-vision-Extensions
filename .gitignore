@@ -5,3 +5,5 @@ __pycache__/
 scripts/__pycache__/
 artifacts/
 mlruns/
+mlflow.db
+mlartifacts/
