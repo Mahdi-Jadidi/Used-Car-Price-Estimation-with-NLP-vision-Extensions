@@ -1,10 +1,3 @@
-"""End-to-end training and prediction pipeline for used-car price estimation.
-
-Run ``python pipeline.py`` to train a model, evaluate it on the held-out test
-set, and save every test-set prediction to SQLite.  MLflow records parameters,
-metrics, and the selected model in ``mlruns/``.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -48,16 +41,17 @@ def train_model(train: pd.DataFrame):
         "ridge": (Ridge(), {"alpha": [0.1, 1.0, 10.0, 100.0]}),
         "random_forest": (
             RandomForestRegressor(random_state=42, n_jobs=-1),
-            {"n_estimators": [100], "max_depth": [10, 20], "min_samples_split": [2, 5]},
+            {"n_estimators": [50], "max_depth": [10], "min_samples_split": [2, 5]},
         ),
         "gradient_boosting": (
             GradientBoostingRegressor(random_state=42),
-            {"n_estimators": [100], "learning_rate": [0.05, 0.1], "max_depth": [3, 5]},
+            {"n_estimators": [50], "learning_rate": [0.05, 0.1], "max_depth": [3]},
         ),
     }
     best_name, best_search = None, None
     for name, (estimator, grid) in candidates.items():
-        search = GridSearchCV(estimator, grid, cv=3, scoring="neg_mean_absolute_error", n_jobs=-1)
+        # Keep the pipeline reliable on constrained CI runners and local machines.
+        search = GridSearchCV(estimator, grid, cv=3, scoring="neg_mean_absolute_error", n_jobs=1)
         search.fit(x_train, y_train)
         if best_search is None or search.best_score_ > best_search.best_score_:
             best_name, best_search = name, search
@@ -89,7 +83,9 @@ def save_predictions(predictions: pd.DataFrame) -> None:
 
 def run_training() -> dict[str, float]:
     ARTIFACT_DIR.mkdir(exist_ok=True)
-    mlflow.set_tracking_uri((ROOT / "mlruns").as_uri())
+    # MLflow 3 requires a database-backed tracking store; SQLite keeps the
+    # experiment history local, reproducible, and dependency-free.
+    mlflow.set_tracking_uri(f"sqlite:///{(ROOT / 'mlflow.db').as_posix()}")
     mlflow.set_experiment("used-car-price-estimation")
     train, test = load_data()
     with mlflow.start_run(run_name="train-and-evaluate"):
