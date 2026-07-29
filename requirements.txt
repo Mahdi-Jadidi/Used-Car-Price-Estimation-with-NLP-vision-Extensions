@@ -1,6 +1,5 @@
-pandas
-numpy
-requests
-deep-translator
-sentence-transformers
-scikit-learn
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+joblib>=1.3
+mlflow>=3.0

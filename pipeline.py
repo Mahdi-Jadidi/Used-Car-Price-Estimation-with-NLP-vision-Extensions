@@ -1,113 +1,132 @@
-"""
-Pipeline stages:
-1. Database connection
-2. Data loading from SQLite
-3. Data preprocessing and cleaning
-4. Feature engineering and modeling prep
-5. Save final outputs
+"""End-to-end training and prediction pipeline for used-car price estimation.
+
+Run ``python pipeline.py`` to train a model, evaluate it on the held-out test
+set, and save every test-set prediction to SQLite.  MLflow records parameters,
+metrics, and the selected model in ``mlruns/``.
 """
 
-import os
-import sys
+from __future__ import annotations
+
+import argparse
+import json
+import sqlite3
+from pathlib import Path
+
+import joblib
+import mlflow
+import mlflow.sklearn
+import numpy as np
 import pandas as pd
-import pickle
-from datetime import datetime
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import GridSearchCV
 
-project_root = os.path.dirname(os.path.abspath(__file__))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "data"
+ARTIFACT_DIR = ROOT / "artifacts"
+MODEL_PATH = ARTIFACT_DIR / "best_model.joblib"
+METRICS_PATH = ARTIFACT_DIR / "metrics.json"
+PREDICTIONS_DB = ARTIFACT_DIR / "predictions.db"
+TARGET = "price"
 
-def main():
-    """Execute complete data pipeline."""
-    
-    print("="*60)
-    print("CAR PRICE PREDICTION - DATA PIPELINE")
-    print("="*60)
-    print(f"Start time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
-    
-    print("[1/5] Testing database connection...")
-    try:
-        from scripts.database_connection import get_connection
-        conn = get_connection()
-        print("      [OK] Database connected successfully")
-        conn.close()
-    except Exception as e:
-        print(f"      [ERROR] Database connection failed: {e}")
-        return
-    
-    print("[2/5] Loading data from database...")
-    try:
-        from scripts.load_data import load_scrap_data, load_original_data, load_car_names_data
-        
-        df_scrap = load_scrap_data()
-        df_original = load_original_data()
-        df_names = load_car_names_data()
-        
-        print(f"      [OK] Scrap data: {len(df_scrap)} rows")
-        print(f"      [OK] Original data: {len(df_original)} rows")
-        print(f"      [OK] Car names: {len(df_names)} rows")
-    except Exception as e:
-        print(f"      [ERROR] Data loading failed: {e}")
-        return
-    
-    print("[3/5] Preprocessing and cleaning data...")
-    try:
-        from scripts.preprocess import df_concat_clean
-        
-        print(f"      [OK] Cleaned data: {len(df_concat_clean)} rows, {len(df_concat_clean.columns)} columns")
-        print(f"      [OK] Columns: {list(df_concat_clean.columns)}")
-    except Exception as e:
-        print(f"      [ERROR] Preprocessing failed: {e}")
-        return
-    
-    print("[4/5] Feature engineering and model preparation...")
-    try:
-        from scripts.feature_enginering import df_train_transformed, df_test_transformed
-        
-        print(f"      [OK] Train set: {len(df_train_transformed)} rows, {len(df_train_transformed.columns)} features")
-        print(f"      [OK] Test set: {len(df_test_transformed)} rows, {len(df_test_transformed.columns)} features")
-    except Exception as e:
-        print(f"      [ERROR] Feature engineering failed: {e}")
-        return
-    
-    print("[5/5] Saving pipeline outputs...")
-    try:
-        output_dir = os.path.join(project_root, "data", "output")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        cleaned_path = os.path.join(output_dir, "cleaned_data.csv")
-        df_concat_clean.to_csv(cleaned_path, index=False, encoding='utf-8-sig')
-        print(f"      [OK] Cleaned data saved: {cleaned_path}")
-        
-        train_path = os.path.join(output_dir, "train_data.csv")
-        df_train_transformed.to_csv(train_path, index=False, encoding='utf-8-sig')
-        print(f"      [OK] Train data saved: {train_path}")
-        
-        test_path = os.path.join(output_dir, "test_data.csv")
-        df_test_transformed.to_csv(test_path, index=False, encoding='utf-8-sig')
-        print(f"      [OK] Test data saved: {test_path}")
-        
-        pickle_path = os.path.join(output_dir, "pipeline_data.pkl")
-        with open(pickle_path, 'wb') as f:
-            pickle.dump({
-                'cleaned': df_concat_clean,
-                'train': df_train_transformed,
-                'test': df_test_transformed
-            }, f)
-        print(f"      [OK] Pickle file saved: {pickle_path}")
-        
-    except Exception as e:
-        print(f"      [ERROR] Saving outputs failed: {e}")
-        return
-    
-    print()
-    print("="*60)
-    print("PIPELINE COMPLETED SUCCESSFULLY")
-    print("="*60)
-    print(f"End time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Output directory: {output_dir}")
-    print()
+
+def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load the Phase 2 engineered train and held-out test data."""
+    train = pd.read_csv(DATA_DIR / "train_data.csv")
+    test = pd.read_csv(DATA_DIR / "test_data.csv")
+    for name, frame in (("train", train), ("test", test)):
+        if TARGET not in frame:
+            raise ValueError(f"{name}_data.csv must contain a '{TARGET}' column")
+    return train, test
+
+
+def train_model(train: pd.DataFrame):
+    """Tune candidate regressors with CV and return the lowest-MAE estimator."""
+    x_train, y_train = train.drop(columns=TARGET), train[TARGET]
+    candidates = {
+        "ridge": (Ridge(), {"alpha": [0.1, 1.0, 10.0, 100.0]}),
+        "random_forest": (
+            RandomForestRegressor(random_state=42, n_jobs=-1),
+            {"n_estimators": [100], "max_depth": [10, 20], "min_samples_split": [2, 5]},
+        ),
+        "gradient_boosting": (
+            GradientBoostingRegressor(random_state=42),
+            {"n_estimators": [100], "learning_rate": [0.05, 0.1], "max_depth": [3, 5]},
+        ),
+    }
+    best_name, best_search = None, None
+    for name, (estimator, grid) in candidates.items():
+        search = GridSearchCV(estimator, grid, cv=3, scoring="neg_mean_absolute_error", n_jobs=-1)
+        search.fit(x_train, y_train)
+        if best_search is None or search.best_score_ > best_search.best_score_:
+            best_name, best_search = name, search
+    return best_name, best_search.best_estimator_, best_search.best_params_, -best_search.best_score_
+
+
+def evaluate(model, test: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, float]]:
+    features, actual = test.drop(columns=TARGET), test[TARGET]
+    predicted = model.predict(features)
+    results = features.copy()
+    results.insert(0, "prediction_id", range(1, len(results) + 1))
+    results["actual_price"] = actual.to_numpy()
+    results["predicted_price"] = predicted
+    results["absolute_error"] = np.abs(actual.to_numpy() - predicted)
+    metrics = {
+        "mae": float(mean_absolute_error(actual, predicted)),
+        "rmse": float(mean_squared_error(actual, predicted) ** 0.5),
+        "r2": float(r2_score(actual, predicted)),
+    }
+    return results, metrics
+
+
+def save_predictions(predictions: pd.DataFrame) -> None:
+    """Persist final inference output to a project-owned SQLite database."""
+    ARTIFACT_DIR.mkdir(exist_ok=True)
+    with sqlite3.connect(PREDICTIONS_DB) as connection:
+        predictions.to_sql("model_predictions", connection, if_exists="replace", index=False)
+
+
+def run_training() -> dict[str, float]:
+    ARTIFACT_DIR.mkdir(exist_ok=True)
+    mlflow.set_tracking_uri((ROOT / "mlruns").as_uri())
+    mlflow.set_experiment("used-car-price-estimation")
+    train, test = load_data()
+    with mlflow.start_run(run_name="train-and-evaluate"):
+        model_name, model, parameters, cv_mae = train_model(train)
+        predictions, metrics = evaluate(model, test)
+        metrics["cv_mae"] = cv_mae
+        metrics["train_rows"] = len(train)
+        metrics["test_rows"] = len(test)
+        joblib.dump(model, MODEL_PATH)
+        METRICS_PATH.write_text(json.dumps({"model": model_name, "parameters": parameters, **metrics}, indent=2), encoding="utf-8")
+        save_predictions(predictions)
+        mlflow.log_param("model", model_name)
+        mlflow.log_params(parameters)
+        mlflow.log_metrics(metrics)
+        mlflow.log_artifact(str(METRICS_PATH))
+        mlflow.sklearn.log_model(model, artifact_path="model")
+    print(f"Selected model: {model_name}")
+    print(f"MAE={metrics['mae']:.4f}, RMSE={metrics['rmse']:.4f}, R2={metrics['r2']:.4f}")
+    print(f"Saved model: {MODEL_PATH.relative_to(ROOT)}")
+    print(f"Saved {len(predictions)} predictions to: {PREDICTIONS_DB.relative_to(ROOT)} (model_predictions table)")
+    return metrics
+
+
+def run_prediction() -> None:
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError("No saved model. Run `python pipeline.py train` first.")
+    _, test = load_data()
+    predictions, _ = evaluate(joblib.load(MODEL_PATH), test)
+    save_predictions(predictions)
+    print(f"Saved {len(predictions)} predictions to: {PREDICTIONS_DB.relative_to(ROOT)}")
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", choices=("train", "predict", "run"), default="run", nargs="?")
+    command = parser.parse_args().command
+    if command in ("train", "run"):
+        run_training()
+    else:
+        run_prediction()
