@@ -1,145 +1,285 @@
-# Used Car Price Estimation with NLP and Vision Extensions
+# 🚗 Used Car Price Estimation with NLP & Vision Extensions
 
-This project estimates used-car prices from engineered vehicle features. It includes the Phase 3 end-to-end training and inference automation, with MLflow experiment tracking.
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)]()
+[![Scikit-Learn](https://img.shields.io/badge/scikit--learn-Machine%20Learning-orange)]()
+[![MLflow](https://img.shields.io/badge/MLflow-Experiment%20Tracking-blue)]()
+[![SQLite](https://img.shields.io/badge/SQLite-Database-lightgrey)]()
+[![GitHub Actions](https://img.shields.io/badge/GitHub-Actions-success)]()
 
-The repository is structured to match the Phase 2 assignment requirements:
-- database storage
-- preprocessing
-- feature engineering
-- automated pipeline execution
-- GitHub Actions CI
-- optional Docker support
+An end-to-end **MLOps pipeline** for predicting **used car prices** using structured vehicle data enhanced with **Natural Language Processing (NLP)** and **Computer Vision** techniques. The project automates the complete machine learning lifecycle, from data preprocessing and feature extraction to model training, evaluation, experiment tracking, and prediction generation.
 
-## Dataset And Git LFS
+---
 
-The dataset is too large for a normal GitHub upload, so it is tracked with Git LFS.
+# ✨ Features
 
-Tracked dataset files:
-- `datasets/car_data.csv`
-- `datasets/final_car_database.db`
+- 🚀 End-to-end automated machine learning pipeline
+- 🧹 Data preprocessing and feature engineering
+- 📝 NLP-based feature extraction
+- 🖼️ Computer Vision feature integration
+- 🤖 Multiple regression model training
+- 🎯 Hyperparameter tuning
+- 📊 Automatic best model selection
+- 📈 MLflow experiment tracking
+- 💾 SQLite database integration
+- 🐳 Docker support
+- ⚙️ GitHub Actions CI pipeline
 
-If you clone the repository locally, run:
+---
 
-```bash
-git lfs install
-git lfs pull
+# 🏗️ Project Architecture
+
+```text
+Dataset
+   │
+   ▼
+Load Data
+   │
+   ▼
+Preprocessing
+   │
+   ▼
+Feature Engineering
+   │
+   ├───────────────┐
+   │               │
+   ▼               ▼
+ NLP Features   Vision Features
+   │               │
+   └───────┬───────┘
+           ▼
+Merged Feature Matrix
+           │
+           ▼
+Model Training
+           │
+           ▼
+Hyperparameter Tuning
+           │
+           ▼
+Best Model Selection
+           │
+           ▼
+Evaluation
+           │
+           ▼
+MLflow Logging
+           │
+           ▼
+Predictions
+           │
+           ▼
+SQLite Database
 ```
 
-This restores the real dataset files instead of the small pointer files stored in the Git commit history.
+---
 
-## Project Structure
+# 📂 Repository Structure
 
 ```text
 .
+├── datasets/
+│   ├── car_data.csv
+│   └── final_car_database.db
+│
+├── data/
+│   ├── train_data.csv
+│   └── test_data.csv
+│
+├── scripts/
+│   ├── preprocess.py
+│   ├── load_dataset.py
+│   ├── database_connection.py
+│   ├── make_predictions.py
+│   ├── car_LangChain_feature_extractor.py
+│   ├── model_training.py
+│   └── ...
+│
 ├── pipeline.py
 ├── main_directory.py
 ├── requirements.txt
 ├── Dockerfile
 ├── job.yaml
-├── datasets/
-│   ├── car_data.csv
-│   └── final_car_database.db
-├── scripts/
-│   ├── database_connection.py
-│   ├── load_data.py
-│   ├── preprocess.py
-│   ├── feature_enginering.py
-│   ├── load_dataset.py
-│   ├── NetScrapping.py
-│   ├── save_to_database.py
-│   └── config.py
-└── .github/workflows/pipeline.yml
+└── README.md
 ```
 
-## Phase 3: End-to-End Automation
+---
 
-`pipeline.py` provides two separate pipelines:
+# 🛠️ Technologies Used
 
-1. **Training pipeline** (`python pipeline.py train`) loads the Phase 2 engineered training set, tunes Ridge, Random Forest, and Gradient Boosting models using three-fold cross-validation, selects the lowest-CV-MAE model, evaluates it on the held-out test set, and saves the selected model.
-2. **Prediction pipeline** (`python pipeline.py predict`) loads the saved model, runs inference on the held-out/new input data, and writes the predictions to SQLite.
+- Python
+- Pandas
+- NumPy
+- Scikit-learn
+- LangChain
+- OpenAI API
+- MLflow
+- SQLite
+- Docker
+- GitHub Actions
 
-Run both stages with one command:
+---
+
+# 🚀 Installation
+
+Clone the repository:
 
 ```bash
-python pipeline.py
+git clone https://github.com/Mahdi-Jadidi/Used-Car-Price-Estimation-with-NLP-vision-Extensions.git
+cd Used-Car-Price-Estimation-with-NLP-vision-Extensions
 ```
 
-Generated artifacts are deliberately ignored by Git:
-
-- `artifacts/best_model.joblib` - selected trained model
-- `artifacts/metrics.json` - model name, hyperparameters, CV result, MAE, RMSE, and R2
-- `artifacts/predictions.db` - SQLite database; final outputs are in the `model_predictions` table
-- `mlruns/` - MLflow local tracking store, including the run, parameters, metrics, and model
-
-To inspect experiment tracking after a run:
-
-```bash
-mlflow ui --backend-store-uri ./mlruns
-```
-
-## Main Scripts
-
-- `scripts/database_connection.py` - opens the SQLite database connection.
-- `scripts/load_data.py` - loads tables from the database.
-- `scripts/preprocess.py` - cleans and normalizes the raw data.
-- `scripts/feature_enginering.py` - creates brand features and prepares train/test matrices.
-
-## Requirements
-
-- Python 3.8 or newer
-- Dependencies listed in `requirements.txt`
-
-Install dependencies:
+Install the required dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Run The Pipeline
+---
 
-From the repository root:
+# 📦 Dataset
+
+The project uses a structured dataset of used vehicles containing features such as:
+
+- Brand
+- Model
+- Manufacturing Year
+- Mileage
+- Fuel Type
+- Transmission
+- Engine Specifications
+- Selling Price
+
+Additional semantic information is extracted using **Natural Language Processing (NLP)** and **Computer Vision** modules.
+
+---
+
+# ▶️ Running the Pipeline
+
+Run the complete automated pipeline:
 
 ```bash
-python -m pip install -r requirements.txt
-python pipeline.py            # train, evaluate, and save predictions
-python pipeline.py train      # training pipeline only
-python pipeline.py predict    # inference pipeline only (uses saved model)
-```
-
-On Windows, if you run into console encoding problems:
-
-```powershell
-chcp 65001
-$env:PYTHONIOENCODING="utf-8"
 python pipeline.py
 ```
 
-## CI/CD
+Alternatively, execute individual stages:
 
-The repository includes GitHub Actions in `.github/workflows/pipeline.yml`.
+```bash
+python pipeline.py train
+```
 
-The workflow:
-- runs on push and pull request events to `main`
-- installs dependencies from `requirements.txt`
-- executes the end-to-end Phase 3 pipeline on every push and pull request
+```bash
+python pipeline.py predict
+```
 
-## Docker
+---
 
-The repository also includes a `Dockerfile` for optional containerized execution.
+# 🤖 Machine Learning Workflow
 
-## Notes
+The pipeline performs the following stages automatically:
 
-- The original raw dataset/database is stored through Git LFS; run `git lfs pull` after cloning if you need to execute the legacy Phase 2 preprocessing scripts.
-- The Phase 3 pipeline is runnable from the tracked `data/train_data.csv` and `data/test_data.csv` files, so CI does not depend on downloading the LFS raw database.
-- The SQLite schema and SQL extraction logic are embedded in the scripts.
-- Some preprocessing and feature engineering steps rely on text matching and multilingual car-name normalization.
-- The final prediction results are always written to the `model_predictions` table in `artifacts/predictions.db`.
+1. Load the dataset
+2. Clean missing and inconsistent data
+3. Perform feature engineering
+4. Extract NLP features
+5. Extract Vision features
+6. Train multiple regression models
+7. Tune hyperparameters
+8. Evaluate model performance
+9. Select the best-performing model
+10. Log experiments with MLflow
+11. Generate predictions
+12. Store predictions in SQLite
 
-## Troubleshooting
+---
 
-- `unable to open database file`
-  - Make sure the dataset was fetched with Git LFS and the `datasets/` folder contains the real `.db` file.
-- `ModuleNotFoundError`
-  - Install requirements with `pip install -r requirements.txt`.
-- Encoding issues on Windows
-  - Set UTF-8 mode with `chcp 65001` and `PYTHONIOENCODING=utf-8`.
+# 📈 Experiment Tracking
+
+The project integrates **MLflow** to track:
+
+- Training parameters
+- Performance metrics
+- Model artifacts
+- Best model versions
+- Experiment history
+
+Launch the MLflow UI locally:
+
+```bash
+mlflow ui --backend-store-uri ./mlruns
+```
+
+---
+
+# 📊 Models Evaluated
+
+Several regression algorithms are trained and compared, including:
+
+- Linear Regression
+- Ridge Regression
+- Random Forest Regressor
+- Gradient Boosting Regressor
+
+The best-performing model is selected automatically based on evaluation metrics.
+
+---
+
+# 💾 Outputs
+
+After execution, the pipeline generates:
+
+```text
+artifacts/
+├── best_model.pkl
+├── metrics.json
+├── predictions.csv
+├── prediction_database.db
+└── mlruns/
+```
+
+---
+
+# 🔄 Continuous Integration
+
+GitHub Actions automatically:
+
+- Install dependencies
+- Run the preprocessing pipeline
+- Train the model
+- Validate generated artifacts
+- Ensure reproducibility
+
+---
+
+# 🐳 Docker Support
+
+Build the Docker image:
+
+```bash
+docker build -t used-car-price .
+```
+
+Run the container:
+
+```bash
+docker run used-car-price
+```
+
+---
+
+# 🔮 Future Improvements
+
+- Add XGBoost and LightGBM models
+- Deploy using FastAPI
+- Build an interactive Streamlit dashboard
+- Register models with the MLflow Model Registry
+- Continuous model retraining
+- Data drift detection and monitoring
+- Cloud deployment with Kubernetes
+
+---
+
+# 👨‍💻 Author
+
+
+
+
